@@ -40,7 +40,7 @@ model Device {
 
   tags        Tag[]
   ipAddresses IpAddress[]
-  credential  Credential?
+  credentials Credential[]
 }
 
 model Vlan {
@@ -71,7 +71,7 @@ model Credential {
   encrypted_password String
   desc               String?
 
-  deviceId String @unique
+  deviceId String
   device   Device @relation(fields: [deviceId], references: [id])
 }
 

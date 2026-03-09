@@ -97,7 +97,7 @@ export default function SettingsPage() {
                     </CardHeader>
                     <CardContent className="pt-4 space-y-4">
                         <form onSubmit={handleCreateLocation} className="flex gap-2">
-                            <Input className="border-zinc-800 bg-zinc-950 focus-visible:ring-emerald-500/50" placeholder="e.g. Rack 1, AWS" required value={newLocation} onChange={e => setNewLocation(e.target.value)} />
+                            <Input className="border-zinc-800 bg-zinc-950 text-zinc-100 focus-visible:ring-emerald-500/50" placeholder="e.g. Rack 1, AWS" required value={newLocation} onChange={e => setNewLocation(e.target.value)} />
                             <Button type="submit" variant="secondary" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300">Add</Button>
                         </form>
                         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
@@ -123,7 +123,7 @@ export default function SettingsPage() {
                     </CardHeader>
                     <CardContent className="pt-4 space-y-4">
                         <form onSubmit={handleCreateType} className="space-y-3">
-                            <Input className="border-zinc-800 bg-zinc-950 focus-visible:ring-blue-500/50" placeholder="e.g. Switch, Hypervisor" required value={newType.type} onChange={e => setNewType({ ...newType, type: e.target.value })} />
+                            <Input className="border-zinc-800 bg-zinc-950 text-zinc-100 focus-visible:ring-blue-500/50" placeholder="e.g. Switch, Hypervisor" required value={newType.type} onChange={e => setNewType({ ...newType, type: e.target.value })} />
                             <div className="flex items-center justify-between">
                                 <label className="text-sm text-zinc-400 flex items-center gap-2 cursor-pointer select-none">
                                     <input type="checkbox" className="rounded border-zinc-800 bg-zinc-950 text-blue-500 focus:ring-blue-500 focus:ring-offset-zinc-900" checked={newType.isVirtual} onChange={e => setNewType({ ...newType, isVirtual: e.target.checked })} />
@@ -159,7 +159,7 @@ export default function SettingsPage() {
                     <CardContent className="pt-4 space-y-4">
                         <form onSubmit={handleCreateTag} className="flex gap-2">
                             <Input type="color" className="w-[42px] h-10 p-1 border-zinc-800 bg-zinc-950 cursor-pointer block rounded-md shrink-0" value={newTag.color} onChange={e => setNewTag({ ...newTag, color: e.target.value })} />
-                            <Input className="border-zinc-800 bg-zinc-950 flex-1 focus-visible:ring-violet-500/50" placeholder="e.g. Production" required value={newTag.name} onChange={e => setNewTag({ ...newTag, name: e.target.value })} />
+                            <Input className="border-zinc-800 bg-zinc-950 text-zinc-100 flex-1 focus-visible:ring-violet-500/50" placeholder="e.g. Production" required value={newTag.name} onChange={e => setNewTag({ ...newTag, name: e.target.value })} />
                             <Button type="submit" variant="secondary" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300">Add</Button>
                         </form>
                         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">

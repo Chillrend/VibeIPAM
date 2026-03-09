@@ -1,0 +1,2 @@
+## Context Protocol
+CRITICAL: At the start of every new task or session, you MUST read `.agent/implementation_plan.md` and `.agent/task.md` to establish context and verify current progress before writing any code or executing terminal commands.

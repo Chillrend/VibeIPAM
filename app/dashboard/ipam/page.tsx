@@ -8,9 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Plus, Loader2, Network, Server } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { getVlansWithIps, createVlan } from "@/app/actions/db";
+import { getVlansWithIps, createVlan, updateVlan, createIpAddress, updateIpAddress, deleteIpAddress } from "@/app/actions/db";
 import { calculateAvailableRanges, getFirstAvailableIp } from "@/lib/ip-utils";
 import { Prisma } from "@prisma/client";
 
@@ -33,6 +33,7 @@ export default function IpamPage() {
 
     const [isVlanDialogOpen, setIsVlanDialogOpen] = useState(false);
     const [newVlanLoading, setNewVlanLoading] = useState(false);
+    const [editingVlan, setEditingVlan] = useState(false);
     const [newVlanData, setNewVlanData] = useState({
         vlan_id: "",
         name: "",
@@ -40,6 +41,14 @@ export default function IpamPage() {
         description: ""
     });
 
+    const [isIpDialogOpen, setIsIpDialogOpen] = useState(false);
+    const [ipLoading, setIpLoading] = useState(false);
+    const [ipError, setIpError] = useState<string | null>(null);
+    const [editingIpId, setEditingIpId] = useState<string | null>(null);
+    const [ipData, setIpData] = useState({
+        ipAddress: "",
+        description: "",
+    });
     const refreshVlans = async () => {
         const data = await getVlansWithIps();
         setVlans(data);
@@ -52,18 +61,28 @@ export default function IpamPage() {
         e.preventDefault();
         setNewVlanLoading(true);
         try {
-            const created = await createVlan({
-                vlan_id: parseInt(newVlanData.vlan_id),
-                name: newVlanData.name,
-                cidr_block: newVlanData.cidr_block,
-                description: newVlanData.description
-            });
+            let result;
+            if (editingVlan && selectedVlan) {
+                result = await updateVlan(selectedVlan.id, {
+                    name: newVlanData.name,
+                    cidr_block: newVlanData.cidr_block,
+                    description: newVlanData.description
+                });
+            } else {
+                result = await createVlan({
+                    vlan_id: parseInt(newVlanData.vlan_id),
+                    name: newVlanData.name,
+                    cidr_block: newVlanData.cidr_block,
+                    description: newVlanData.description
+                });
+            }
             await refreshVlans();
             setIsVlanDialogOpen(false);
+            setEditingVlan(false);
             setNewVlanData({ vlan_id: "", name: "", cidr_block: "", description: "" });
 
             const updated = await getVlansWithIps();
-            const found = updated.find(v => v.id === created.id);
+            const found = updated.find(v => v.id === result.id);
             if (found) setSelectedVlan(found);
 
         } catch (error) {
@@ -72,6 +91,89 @@ export default function IpamPage() {
             setNewVlanLoading(false);
         }
     };
+
+    const handleSaveIp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIpLoading(true);
+        setIpError(null);
+        try {
+            setIpError(null);
+            if (editingIpId) {
+                await updateIpAddress(editingIpId, { description: ipData.description });
+            } else if (selectedVlan) {
+                await createIpAddress({
+                    vlanId: selectedVlan.id,
+                    ipAddress: ipData.ipAddress,
+                    description: ipData.description,
+                    isAllocated: true
+                });
+            }
+            await refreshVlans();
+            setIsIpDialogOpen(false);
+            setEditingIpId(null);
+            setIpData({ ipAddress: "", description: "" });
+            
+            // Re-select the vlan from refreshed data
+            if (selectedVlan) {
+               const updated = await getVlansWithIps();
+               const found = updated.find(v => v.id === selectedVlan.id);
+               if (found) setSelectedVlan(found);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIpLoading(false);
+        }
+    };
+
+    const handleFreeIp = async (id: string) => {
+        setIpLoading(true);
+        setIpError(null);
+        try {
+            await deleteIpAddress(id);
+            await refreshVlans();
+            setIsIpDialogOpen(false);
+            if (selectedVlan) {
+               const updated = await getVlansWithIps();
+               const found = updated.find(v => v.id === selectedVlan.id);
+               if (found) setSelectedVlan(found);
+            }
+        } catch (error: any) {
+            console.error(error);
+            setIpError(error.message || "Failed to free IP");
+        } finally {
+            setIpLoading(false);
+        }
+    };
+
+    const openEditVlan = () => {
+        if (!selectedVlan) return;
+        setEditingVlan(true);
+        setNewVlanData({
+            vlan_id: selectedVlan.vlan_id.toString(),
+            name: selectedVlan.name,
+            cidr_block: selectedVlan.cidr_block,
+            description: selectedVlan.description
+        });
+        setIsVlanDialogOpen(true);
+    };
+
+    const openEditIp = (ip: any) => {
+        setEditingIpId(ip.id);
+        setIpError(null);
+        setIpData({
+            ipAddress: ip.ip_address,
+            description: ip.description || ""
+        });
+        setIsIpDialogOpen(true);
+    };
+
+    const openAllocateIp = (ipAddr?: string) => {
+        setEditingIpId(null);
+        setIpError(null);
+        setIpData({ ipAddress: ipAddr || "", description: "" });
+        setIsIpDialogOpen(true);
+    }
 
     useEffect(() => {
         async function fetchVlans() {
@@ -111,17 +213,17 @@ export default function IpamPage() {
         <Dialog open={isVlanDialogOpen} onOpenChange={setIsVlanDialogOpen}>
             <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Create New Subnet</DialogTitle>
+                    <DialogTitle>{editingVlan ? `Edit Subnet VLAN ${newVlanData.vlan_id}` : "Create New Subnet"}</DialogTitle>
                     <DialogDescription className="text-zinc-500">
-                        Add a new CIDR block to begin managing dynamic IP allocations.
+                        {editingVlan ? "Update the properties of your existing Subnet." : "Add a new CIDR block to begin managing dynamic IP allocations."}
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleCreateVlan} className="space-y-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="vlan_id">VLAN ID</Label>
-                            <Input id="vlan_id" type="number" required placeholder="e.g. 10"
-                                className="border-zinc-800 bg-zinc-900/50"
+                            <Input id="vlan_id" type="number" required placeholder="e.g. 10" disabled={editingVlan}
+                                className="border-zinc-800 bg-zinc-900/50 disabled:opacity-50"
                                 value={newVlanData.vlan_id} onChange={e => setNewVlanData({ ...newVlanData, vlan_id: e.target.value })} />
                         </div>
                         <div className="space-y-2">
@@ -143,11 +245,58 @@ export default function IpamPage() {
                             className="border-zinc-800 bg-zinc-900/50"
                             value={newVlanData.description} onChange={e => setNewVlanData({ ...newVlanData, description: e.target.value })} />
                     </div>
-                    <DialogFooter className="pt-4">
-                        <Button type="button" variant="ghost" onClick={() => setIsVlanDialogOpen(false)}>Cancel</Button>
-                        <Button type="submit" disabled={newVlanLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white">
-                            {newVlanLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Subnet"}
+                    <DialogFooter className="-mx-4 -mb-4 mt-4 flex flex-col items-center gap-2 rounded-b-xl border-t border-zinc-800 bg-muted/50 p-4 sm:flex-row sm:justify-end">
+                        <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={() => setIsVlanDialogOpen(false)}>Cancel</Button>
+                        <Button type="submit" disabled={newVlanLoading} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white">
+                            {newVlanLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : editingVlan ? "Save Subnet" : "Create Subnet"}
                         </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+
+    const IpDialog = (
+        <Dialog open={isIpDialogOpen} onOpenChange={setIsIpDialogOpen}>
+            <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{editingIpId ? "Manage IP Allocation" : "Manual IP Allocation"}</DialogTitle>
+                    <DialogDescription className="text-zinc-500">
+                        {editingIpId ? "Edit description or free this IP." : "Manually carve out an IP address in this VLAN without a device."}
+                    </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSaveIp} className="space-y-4 py-4">
+                    {ipError && (
+                        <div className="bg-red-950/40 border border-red-900/50 p-3 rounded-md text-red-500 text-sm font-medium">
+                            {ipError}
+                        </div>
+                    )}
+                    <div className="space-y-2">
+                        <Label htmlFor="ip_addr">IP Address {editingIpId ? "" : "or Range"}</Label>
+                        <Input id="ip_addr" required placeholder="e.g. 10.0.10.55 or 10.0.10.10-10.0.10.20" disabled={!!editingIpId}
+                            className="border-zinc-800 bg-zinc-900/50 disabled:opacity-50 font-mono text-sm"
+                            value={ipData.ipAddress} onChange={e => setIpData({ ...ipData, ipAddress: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="ip_desc">Description</Label>
+                        <Input id="ip_desc" placeholder="What is this allocated for?"
+                            className="border-zinc-800 bg-zinc-900/50"
+                            value={ipData.description} onChange={e => setIpData({ ...ipData, description: e.target.value })} />
+                    </div>
+                    
+                    <DialogFooter className="-mx-4 -mb-4 mt-4 flex flex-col items-center gap-2 rounded-b-xl border-t border-zinc-800 bg-muted/50 p-4 sm:flex-row sm:justify-between">
+                         {editingIpId ? (
+                            <Button type="button" variant="destructive" onClick={() => handleFreeIp(editingIpId)} disabled={ipLoading} className="bg-red-950 border border-red-900 text-red-500 hover:bg-red-900 hover:text-red-300 transition-colors w-full sm:w-auto">
+                               Free IP
+                            </Button>
+                         ) : <div className="hidden sm:block" />}
+
+                        <div className="flex w-full sm:w-auto gap-2 justify-end">
+                            <Button type="button" variant="ghost" className="flex-1 sm:flex-none" onClick={() => setIsIpDialogOpen(false)}>Cancel</Button>
+                            <Button type="submit" disabled={ipLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white flex-1 sm:flex-none">
+                                {ipLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </form>
             </DialogContent>
@@ -181,6 +330,7 @@ export default function IpamPage() {
     return (
         <div className="space-y-6">
             {CreateVlanDialog}
+            {IpDialog}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex items-center gap-4 relative">
                     <DropdownMenu>
@@ -200,15 +350,21 @@ export default function IpamPage() {
                         </DropdownMenuContent>
                     </DropdownMenu>
 
+                    <Button variant="ghost" size="sm" className="h-9 px-3 border border-zinc-700 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-300" onClick={openEditVlan}>Edit Subnet Properties</Button>
+
                     <Badge variant="secondary" className="bg-zinc-800 text-zinc-300 pointer-events-none">
                         {selectedVlan.cidr_block}
                     </Badge>
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Button variant="outline" className="border-zinc-700 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-300" onClick={() => setIsVlanDialogOpen(true)}>
+                    <Button variant="outline" className="border-zinc-700 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-300" onClick={() => { setEditingVlan(false); setNewVlanData({vlan_id: "", name: "", cidr_block: "", description: ""}); setIsVlanDialogOpen(true); }}>
                         <Network className="h-4 w-4 mr-2" />
                         Add Subnet
+                    </Button>
+                    <Button variant="outline" className="border-zinc-700 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-300" onClick={() => openAllocateIp()}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Allocate IPv4
                     </Button>
                     <div className="relative w-full sm:w-64">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-500" />
@@ -246,13 +402,14 @@ export default function IpamPage() {
                                     {visibleAllocatedIps.map((ip) => (
                                         <div
                                             key={ip.id}
-                                            className="p-3 rounded-md border border-red-900/30 bg-red-950/20 text-red-400 flex flex-col gap-1 hover:bg-red-950/40 transition-colors"
-                                            title={ip.device?.name ? `Allocated to: ${ip.device.name}` : 'Unknown'}
+                                            onClick={() => openEditIp(ip)}
+                                            className="p-3 rounded-md border border-emerald-900/30 bg-emerald-950/20 text-emerald-400 flex flex-col gap-1 hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                                            title={ip.device?.name ? `Allocated to: ${ip.device.name}` : ip.description ? ip.description : 'Manually Allocated'}
                                         >
                                             <div className="text-sm font-mono font-semibold tracking-tight">{ip.ip_address}</div>
-                                            <div className="flex items-center gap-1.5 text-xs text-red-400/80 truncate">
+                                            <div className="flex items-center gap-1.5 text-xs text-emerald-400/80 truncate">
                                                 <Server className="h-3 w-3 shrink-0" />
-                                                {ip.device?.name || "Unknown Device"}
+                                                {ip.device?.name || ip.description || "Manually Allocated"}
                                             </div>
                                         </div>
                                     ))}
@@ -281,7 +438,7 @@ export default function IpamPage() {
                                 <Button
                                     className="w-full text-xs border-emerald-800 bg-transparent hover:bg-emerald-950 text-emerald-400"
                                     variant="outline"
-                                    onClick={handleFirstAvailable}
+                                    onClick={() => openAllocateIp(availableRanges[0])}
                                 >
                                     Auto-Provision
                                 </Button>

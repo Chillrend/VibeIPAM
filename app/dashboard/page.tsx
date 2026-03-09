@@ -15,7 +15,7 @@ export default async function DashboardOverview() {
                         <Server className="h-4 w-4 text-zinc-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{totalDevices}</div>
+                        <div className="text-3xl font-bold text-zinc-100">{totalDevices}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-zinc-800 bg-zinc-900/50">
@@ -24,7 +24,7 @@ export default async function DashboardOverview() {
                         <Database className="h-4 w-4 text-zinc-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{totalSubnets}</div>
+                        <div className="text-3xl font-bold text-zinc-100">{totalSubnets}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-zinc-800 bg-zinc-900/50">
@@ -41,7 +41,7 @@ export default async function DashboardOverview() {
             <div className="grid gap-6 md:grid-cols-2">
                 <Card className="border-zinc-800 bg-zinc-900/50">
                     <CardHeader>
-                        <CardTitle>Welcome to Zero-K DCIM</CardTitle>
+                        <CardTitle className="text-zinc-100 text-xl">Welcome to Zero-K DCIM</CardTitle>
                         <CardDescription className="text-zinc-400">Your lightweight, zero-knowledge dashboard.</CardDescription>
                     </CardHeader>
                     <CardContent className="text-zinc-300 text-sm space-y-4">

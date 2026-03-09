@@ -126,7 +126,7 @@ export function UnlockScreen() {
                     </CardDescription>
                 </CardHeader>
                 <form onSubmit={handleSubmit}>
-                    <CardContent className="space-y-5 px-8">
+                    <CardContent className="space-y-5 px-8 pb-8">
                         <div className="space-y-2.5">
                             <Label htmlFor="password" className="text-zinc-300 font-medium">
                                 {isSetup ? "Create Master Password" : "Master Password"}
