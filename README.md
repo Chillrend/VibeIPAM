@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Zero-Knowledge DCIM and IPAM
 
-## Getting Started
+A lightweight, secure Data Center Infrastructure Management and IP Address Management dashboard. Features zero-knowledge client-side encryption for infrastructure credentials using the Web Crypto API.
 
-First, run the development server:
+## Core Features
+- IPAM Module: Visual grid of VLAN allocations.
+- Inventory Dashboard: Server tracking with secure credential retrieval.
+- Zero-Knowledge Security: Master password never leaves your browser; all secrets decrypted locally via AES-GCM.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Local Development Setup
+
+### 1. Requirements
+- Node.js 18+
+- PostgreSQL Database
+
+### 2. Environment Configuration
+Create a `.env` file at the root of the project with your database credentials:
+```env
+DATABASE_HOST=10.23.9.10
+DATABASE_USERNAME=your_db_user
+DATABASE_PASSWORD=your_db_password
+DATABASE_NAME=ipam_dev
+DATABASE_URL="postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}:5432/${DATABASE_NAME}?schema=public"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Install & Run
+```bash
+npm install
+npx prisma generate
+npx prisma db push
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Docker Compose Deployment (Self-Hosting)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The project includes a `Dockerfile` and `docker-compose.yml` for quick containerized deployment.
 
-## Learn More
+1. Configure your `.env` file as shown above.
+2. Build and start the containers in detached mode:
+```bash
+docker-compose up -d --build
+```
+3. Access the dashboard at `http://localhost:3000`.
 
-To learn more about Next.js, take a look at the following resources:
+*Note: The docker-compose file optionally spins up its own PostgreSQL instance if you do not have an external one configured, simply adjust the environment strings accordingly.*
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## First-Time Initialization & Vault Security
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Upon spinning up the application successfully for the first time, you will be met with the **Initialize Vault** screen.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Create Master Password**: You must set a strong Master Password. This password serves as the root entropy for deriving an AES-GCM symmetric encryption key locally in your browser (using the Web Crypto API).
+2. **The Canary**: When initialized, the dashboard encrypts a static "VAULT_READY" canary payload and stores it in the database.
+3. **Future Logins**: On subsequent visits, your entered password derives the key and attempts to decrypt the canary string. If the decryption succeeds, your password is correct, and access to zero-knowledge infrastructure credentials is unlocked. At no point does the clear-text password ever leave your device.

@@ -14,6 +14,7 @@ const cspHeader = `
 `;
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   /* config options here */
   reactCompiler: true,
   async headers() {
