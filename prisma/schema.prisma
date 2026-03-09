@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Location {
+  id      String   @id @default(uuid())
+  name    String   @unique
+  devices Device[]
+}
+
+model DeviceType {
+  id         String   @id @default(uuid())
+  type       String
+  is_virtual Boolean
+  devices    Device[]
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  color_hex String
+  devices   Device[]
+}
+
+model Device {
+  id     String @id @default(uuid())
+  name   String @unique
+  status String
+  desc   String
+
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+
+  deviceTypeId String
+  deviceType   DeviceType @relation(fields: [deviceTypeId], references: [id])
+
+  tags        Tag[]
+  ipAddresses IpAddress[]
+  credential  Credential?
+}
+
+model Vlan {
+  id          String      @id @default(uuid())
+  vlan_id     Int
+  name        String
+  cidr_block  String
+  description String
+  ipAddresses IpAddress[]
+}
+
+model IpAddress {
+  id           String  @id @default(uuid())
+  ip_address   String  @unique
+  is_allocated Boolean @default(false)
+  description  String?
+
+  vlanId String
+  vlan   Vlan   @relation(fields: [vlanId], references: [id])
+
+  deviceId String?
+  device   Device? @relation(fields: [deviceId], references: [id])
+}
+
+model Credential {
+  id                 String  @id @default(uuid())
+  username           String
+  encrypted_password String
+  desc               String?
+
+  deviceId String @unique
+  device   Device @relation(fields: [deviceId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String
+  description String
+  timestamp   DateTime @default(now())
+}
