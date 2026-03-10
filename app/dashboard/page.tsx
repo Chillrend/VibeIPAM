@@ -2,6 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Database, Server, ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardOverview() {
     const totalDevices = await prisma.device.count();
     const totalSubnets = await prisma.vlan.count();

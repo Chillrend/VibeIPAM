@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { DeviceVaultForm } from "./device-vault-form"; // We will create this client component
 
+export const dynamic = 'force-dynamic';
+
 export default async function DeviceDashboardPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = await params;
     
