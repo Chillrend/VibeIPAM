@@ -53,61 +53,109 @@ export function parseCidr(cidr: string) {
 /**
  * Calculates human-readable contiguous blocks of available IP ranges.
  */
-export function calculateAvailableRanges(cidr: string, allocatedIps: string[]): string[] {
+export function calculateAvailableRanges(cidr: string, allocatedIps: string[], reservedRanges: {start: bigint, end: bigint}[] = []): string[] {
     const details = parseCidr(cidr);
     if (!details || details.total === 0) return [];
 
     const allocatedLongs = allocatedIps.map(ipToLong).sort((a, b) => a - b);
     const validAllocated = [...new Set(allocatedLongs.filter(long => long >= details.first && long <= details.last))];
 
-    const ranges: string[] = [];
-    let currentStart = details.first;
+    // Merge individual IPs and Ranges into a unified array of blocked intervals
+    const blocked: {start: bigint, end: bigint}[] = [
+        ...validAllocated.map(long => ({ start: BigInt(long), end: BigInt(long) })),
+        ...reservedRanges
+    ].sort((a, b) => (a.start < b.start ? -1 : 1));
 
-    for (const alloc of validAllocated) {
-        if (currentStart < alloc) {
-            const end = alloc - 1;
-            if (currentStart === end) {
-                ranges.push(longToIp(currentStart));
-            } else {
-                ranges.push(`${longToIp(currentStart)} - ${longToIp(end)}`);
-            }
+    // Merge contiguous/overlapping blocked regions
+    const mergedBlocks: {start: bigint, end: bigint}[] = [];
+    for (const b of blocked) {
+        if (mergedBlocks.length === 0) {
+            mergedBlocks.push(b);
+            continue;
         }
-        currentStart = alloc + 1;
+        const last = mergedBlocks[mergedBlocks.length - 1];
+        if (b.start <= last.end + BigInt(1)) {
+            last.end = b.end > last.end ? b.end : last.end;
+        } else {
+            mergedBlocks.push(b);
+        }
     }
 
-    if (currentStart <= details.last) {
-        if (currentStart === details.last) {
-            ranges.push(longToIp(currentStart));
+    const ranges: string[] = [];
+    let currentStart = BigInt(details.first);
+    const networkLast = BigInt(details.last);
+
+    for (const block of mergedBlocks) {
+        if (currentStart < block.start && block.start <= networkLast) {
+            const end = block.start - BigInt(1);
+            if (currentStart === end) {
+                ranges.push(longToIp(Number(currentStart)));
+            } else {
+                ranges.push(`${longToIp(Number(currentStart))} - ${longToIp(Number(end))}`);
+            }
+        }
+        if (block.end >= currentStart) {
+            currentStart = block.end + BigInt(1);
+        }
+    }
+
+    if (currentStart <= networkLast) {
+        if (currentStart === networkLast) {
+            ranges.push(longToIp(Number(currentStart)));
         } else {
-            ranges.push(`${longToIp(currentStart)} - ${longToIp(details.last)}`);
+            ranges.push(`${longToIp(Number(currentStart))} - ${longToIp(Number(networkLast))}`);
         }
     }
 
     return ranges;
 }
 
+
 /**
  * Returns the very first usable IP address that hasn't been allocated yet.
  */
-export function getFirstAvailableIp(cidr: string, allocatedIps: string[]): string | null {
+export function getFirstAvailableIp(cidr: string, allocatedIps: string[], reservedRanges: {start: bigint, end: bigint}[] = []): string | null {
     const details = parseCidr(cidr);
     if (!details || details.total === 0) return null;
 
     const allocatedLongs = new Set(allocatedIps.map(ipToLong));
     const sortedAllocated = Array.from(allocatedLongs).sort((a, b) => a - b);
 
-    let currentStart = details.first;
+    // Merge into blocked intervals
+    const blocked: {start: bigint, end: bigint}[] = [
+        ...sortedAllocated.map(long => ({ start: BigInt(long), end: BigInt(long) })),
+        ...reservedRanges
+    ].sort((a, b) => (a.start < b.start ? -1 : 1));
 
-    for (const alloc of sortedAllocated) {
-        if (alloc > currentStart) {
-            return longToIp(currentStart);
-        } else if (alloc === currentStart) {
-            currentStart++;
+    // Merge contiguous blocks
+    const mergedBlocks: {start: bigint, end: bigint}[] = [];
+    for (const b of blocked) {
+        if (mergedBlocks.length === 0) {
+            mergedBlocks.push(b);
+            continue;
+        }
+        const last = mergedBlocks[mergedBlocks.length - 1];
+        if (b.start <= last.end + BigInt(1)) {
+            last.end = b.end > last.end ? b.end : last.end;
+        } else {
+            mergedBlocks.push(b);
         }
     }
 
-    if (currentStart <= details.last) {
-        return longToIp(currentStart);
+    let currentStart = BigInt(details.first);
+    const networkLast = BigInt(details.last);
+
+    for (const block of mergedBlocks) {
+        if (block.start > currentStart && currentStart <= networkLast) {
+            return longToIp(Number(currentStart));
+        }
+        if (block.end >= currentStart) {
+            currentStart = block.end + BigInt(1);
+        }
+    }
+
+    if (currentStart <= networkLast) {
+        return longToIp(Number(currentStart));
     }
 
     return null;

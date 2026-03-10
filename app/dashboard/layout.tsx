@@ -49,6 +49,7 @@ export default function DashboardLayout({
         { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
         { name: "IPAM", href: "/dashboard/ipam", icon: Database },
         { name: "Inventory", href: "/dashboard/inventory", icon: Server },
+        { name: "Audit Logs", href: "/dashboard/audit", icon: ShieldAlert },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
     ];
 

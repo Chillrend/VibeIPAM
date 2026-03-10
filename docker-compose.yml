@@ -25,5 +25,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: always
 
+  pinger:
+    image: alpine
+    depends_on:
+      - web
+    restart: always
+    command: /bin/sh -c "apk add --no-cache curl && while true; do echo 'Triggering ping sweep...'; curl -s http://web:3000/api/cron/ping-sweep; sleep 300; done"
+
 volumes:
   postgres_data:

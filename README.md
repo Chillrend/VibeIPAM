@@ -3,8 +3,10 @@
 A lightweight, secure Data Center Infrastructure Management and IP Address Management dashboard. Features zero-knowledge client-side encryption for infrastructure credentials using the Web Crypto API.
 
 ## Core Features
-- IPAM Module: Visual grid of VLAN allocations.
-- Inventory Dashboard: Server tracking with secure credential retrieval.
+- IPAM Module: Visual grid of VLAN allocations, free scopes, and reserved DHCP pools.
+- Automated IP Monitoring: Scheduled cron jobs to perform ICMP ping sweeps and update the active status of allocated addresses.
+- Scalable DHCP Scope Reservations: Securely reserve large blocks of IP addresses natively without cluttering database tables or visual grids.
+- Inventory Dashboard: Detailed server tracking, including individual device dashboards, with secure credential retrieval.
 - Zero-Knowledge Security: Master password never leaves your browser; all secrets decrypted locally via AES-GCM.
 
 ## Local Development Setup
@@ -16,7 +18,7 @@ A lightweight, secure Data Center Infrastructure Management and IP Address Manag
 ### 2. Environment Configuration
 Create a `.env` file at the root of the project with your database credentials:
 ```env
-DATABASE_HOST=10.23.9.10
+DATABASE_HOST=localhost
 DATABASE_USERNAME=your_db_user
 DATABASE_PASSWORD=your_db_password
 DATABASE_NAME=ipam_dev

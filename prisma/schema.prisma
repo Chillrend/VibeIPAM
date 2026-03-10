@@ -50,6 +50,19 @@ model Vlan {
   cidr_block  String
   description String
   ipAddresses IpAddress[]
+  scopeReservations ScopeReservation[]
+}
+
+model ScopeReservation {
+  id          String   @id @default(uuid())
+  start_ip    String
+  end_ip      String
+  start_long  BigInt
+  end_long    BigInt
+  description String
+
+  vlanId      String
+  vlan        Vlan     @relation(fields: [vlanId], references: [id])
 }
 
 model IpAddress {
@@ -57,6 +70,10 @@ model IpAddress {
   ip_address   String  @unique
   is_allocated Boolean @default(false)
   description  String?
+
+  is_pingable  Boolean @default(true)
+  status       String  @default("UNKNOWN")
+  last_seen    DateTime?
 
   vlanId String
   vlan   Vlan   @relation(fields: [vlanId], references: [id])

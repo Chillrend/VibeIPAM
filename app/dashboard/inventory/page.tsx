@@ -7,12 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Server, Shield, Loader2, Key, Plus, HardDrive, Network } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Loader2, Plus, Search, Server, Tag as TagIcon, MapPin, X, Pencil, ArrowRight, HardDrive, Network } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { encryptData, decryptData, getStoredKey } from "@/lib/crypto";
-import { getInventoryDevices, getDeviceCredentials, getLocations, getDeviceTypes, getTags, createDevice, updateDevice, deleteDevice, getVlansWithIps } from "@/app/actions/db";
+import { getInventoryDevices, getLocations, getDeviceTypes, getTags, createDevice, updateDevice, deleteDevice, getVlansWithIps } from "@/app/actions/db";
 import { Prisma } from "@prisma/client";
+import Link from "next/link";
 
 type DeviceWithRelations = Prisma.DeviceGetPayload<{
     include: {
@@ -20,7 +20,6 @@ type DeviceWithRelations = Prisma.DeviceGetPayload<{
         deviceType: true;
         tags: true;
         ipAddresses: true;
-        credentials: { select: { id: true, username: true, desc: true } };
     }
 }>;
 
@@ -34,8 +33,7 @@ type VlanWithIps = Prisma.VlanGetPayload<{
     }
 }>;
 
-type LocalCredentialData = { id?: string; username: string; password?: string; desc: string };
-type LocalIpData = { id?: string; ipAddress: string; vlanId: string };
+type LocalIpData = { id?: string; ip_address: string; vlanId: string };
 
 function InventoryContent() {
     const searchParams = useSearchParams();
@@ -51,8 +49,6 @@ function InventoryContent() {
     const [vlans, setVlans] = useState<VlanWithIps[]>([]);
 
     const [searchQuery, setSearchQuery] = useState("");
-    const [revealingId, setRevealingId] = useState<string | null>(null);
-    const [decryptedPasswords, setDecryptedPasswords] = useState<Record<string, string>>({});
 
     const [isLoading, setIsLoading] = useState(true);
 
@@ -64,15 +60,13 @@ function InventoryContent() {
     const [deviceData, setDeviceData] = useState<{
         name: string; status: string; desc: string; locationId: string; deviceTypeId: string; tagIds: string[];
         ips: LocalIpData[];
-        credentials: LocalCredentialData[];
     }>({
         name: "", status: "Active", desc: "", locationId: "", deviceTypeId: "", tagIds: [],
-        ips: [], credentials: []
+        ips: []
     });
 
     // Tracking what was removed during edit
     const [removedIpIds, setRemovedIpIds] = useState<string[]>([]);
-    const [removedCredentialIds, setRemovedCredentialIds] = useState<string[]>([]);
 
     const fetchAllData = async () => {
         try {
@@ -104,7 +98,7 @@ function InventoryContent() {
             handleOpenDialog();
             setDeviceData(prev => ({ 
                 ...prev, 
-                ips: [{ ipAddress: prefillIp, vlanId: prefillVlanId }] 
+                ips: [{ ip_address: prefillIp, vlanId: prefillVlanId }] 
             }));
         }
     }, [prefillIp, prefillVlanId]);
@@ -116,7 +110,6 @@ function InventoryContent() {
 
     const handleOpenDialog = (device?: DeviceWithRelations) => {
         setRemovedIpIds([]);
-        setRemovedCredentialIds([]);
         setDeviceError(null);
         
         if (device) {
@@ -128,14 +121,13 @@ function InventoryContent() {
                 locationId: device.locationId,
                 deviceTypeId: device.deviceTypeId,
                 tagIds: device.tags.map(t => t.id),
-                ips: device.ipAddresses.map(ip => ({ id: ip.id, ipAddress: ip.ip_address, vlanId: ip.vlanId })),
-                credentials: device.credentials.map(c => ({ id: c.id, username: c.username, desc: c.desc || "" })) // passwords mapped later safely
+                ips: device.ipAddresses.map(ip => ({ id: ip.id, ip_address: ip.ip_address, vlanId: ip.vlanId })),
             });
         } else {
             setEditingDeviceId(null);
             setDeviceData({
                 name: "", status: "Active", desc: "", locationId: "", deviceTypeId: "", tagIds: [],
-                ips: [], credentials: []
+                ips: []
             });
         }
         setIsDeviceDialogOpen(true);
@@ -145,22 +137,7 @@ function InventoryContent() {
         e.preventDefault();
         setDeviceLoading(true);
         setDeviceError(null);
-
         try {
-            const key = await getStoredKey();
-            if (!key && deviceData.credentials.some(c => c.password)) {
-                throw new Error("Master key missing for encryption");
-            }
-
-            // Encrypt all *new* passwords provided
-            const processedCredentials = await Promise.all(
-                deviceData.credentials.filter(c => c.password && !c.id).map(async c => ({
-                    username: c.username,
-                    desc: c.desc,
-                    encryptedPassword: await encryptData(c.password!, key!)
-                }))
-            );
-
             if (editingDeviceId) {
                 await updateDevice(editingDeviceId, {
                     name: deviceData.name,
@@ -169,10 +146,10 @@ function InventoryContent() {
                     locationId: deviceData.locationId,
                     deviceTypeId: deviceData.deviceTypeId,
                     tagIds: deviceData.tagIds,
-                    ipsToCreate: deviceData.ips.filter(ip => !ip.id),
+                    ipsToCreate: deviceData.ips.filter(ip => !ip.id).map(ip => ({ ipAddress: ip.ip_address, vlanId: ip.vlanId })),
                     ipIdsToRemove: removedIpIds,
-                    credentialsToCreate: processedCredentials,
-                    credentialIdsToRemove: removedCredentialIds
+                    credentialsToCreate: [],
+                    credentialIdsToRemove: []
                 });
             } else {
                 await createDevice({
@@ -182,8 +159,8 @@ function InventoryContent() {
                     locationId: deviceData.locationId,
                     deviceTypeId: deviceData.deviceTypeId,
                     tagIds: deviceData.tagIds,
-                    ips: deviceData.ips,
-                    credentials: processedCredentials
+                    ips: deviceData.ips.map(ip => ({ ipAddress: ip.ip_address, vlanId: ip.vlanId })),
+                    credentials: []
                 });
             }
 
@@ -218,32 +195,6 @@ function InventoryContent() {
         }
     };
 
-    const handleRevealPasswords = async (deviceId: string) => {
-        setRevealingId(deviceId);
-        setDecryptedPasswords({});
-
-        try {
-            const encryptedCreds = await getDeviceCredentials(deviceId);
-            if (!encryptedCreds || encryptedCreds.length === 0) throw new Error("No credentials found.");
-
-            const key = await getStoredKey();
-            if (!key) throw new Error("Master key not found. Please log in again.");
-
-            await new Promise(resolve => setTimeout(resolve, 800)); // Cinematic delay
-            
-            const decryptedMap: Record<string, string> = {};
-            for (const cred of encryptedCreds) {
-                decryptedMap[cred.id] = await decryptData(cred.encrypted_password, key);
-            }
-            
-            setDecryptedPasswords(decryptedMap);
-        } catch (error) {
-            console.error("Failed to reveal passwords", error);
-        } finally {
-            setRevealingId(null);
-        }
-    };
-
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-64">
@@ -253,6 +204,13 @@ function InventoryContent() {
     }
 
     const selectClassName = "flex h-10 w-full rounded-md border border-zinc-700 bg-zinc-900/50 px-3 py-2 text-sm ring-offset-zinc-950 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-50 text-zinc-100";
+
+    const getStatusDot = (status: string, isPingable: boolean) => {
+        if (!isPingable) return <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" title="Monitoring Disabled" />;
+        if (status === 'UP') return <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)] shrink-0" title="UP" />;
+        if (status === 'DOWN') return <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)] shrink-0" title="DOWN" />;
+        return <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 shrink-0" title="Unknown Status" />;
+    };
 
     return (
         <div className="space-y-6">
@@ -333,7 +291,7 @@ function InventoryContent() {
                                             <Network className="w-4 h-4 text-blue-500" />
                                             <h4 className="text-sm font-medium text-blue-400">Network Interfaces</h4>
                                         </div>
-                                        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-blue-400 hover:text-blue-300" onClick={() => setDeviceData({...deviceData, ips: [...deviceData.ips, { ipAddress: "", vlanId: "" }]})}>
+                                        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-blue-400 hover:text-blue-300" onClick={() => setDeviceData({...deviceData, ips: [...deviceData.ips, { ip_address: "", vlanId: "" }]})}>
                                             <Plus className="w-3 h-3 mr-1" /> Add IP
                                         </Button>
                                     </div>
@@ -346,8 +304,8 @@ function InventoryContent() {
                                                  <Input placeholder="IP Address (e.g. 10.0.0.5)" required disabled={!!ip.id}
                                                     list={`ip-suggestions-${idx}`}
                                                     className="border-zinc-800 bg-zinc-950 disabled:opacity-50"
-                                                    value={ip.ipAddress} onChange={e => {
-                                                        const newIps = [...deviceData.ips]; newIps[idx].ipAddress = e.target.value; setDeviceData({...deviceData, ips: newIps});
+                                                    value={ip.ip_address} onChange={e => {
+                                                        const newIps = [...deviceData.ips]; newIps[idx].ip_address = e.target.value; setDeviceData({...deviceData, ips: newIps});
                                                     }} />
                                                  {selectedVlan && (
                                                      <datalist id={`ip-suggestions-${idx}`}>
@@ -376,53 +334,6 @@ function InventoryContent() {
                                         </div>
                                     )})}
                                     {deviceData.ips.length === 0 && <div className="text-xs text-zinc-500 text-center py-2 italic">No IP Addresses assigned.</div>}
-                                </div>
-
-                                {/* Credentials Section */}
-                                <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4 space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Shield className="w-4 h-4 text-emerald-500" />
-                                            <h4 className="text-sm font-medium text-emerald-400">Zero-Knowledge Credentials</h4>
-                                        </div>
-                                        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-emerald-400 hover:text-emerald-300" onClick={() => setDeviceData({...deviceData, credentials: [...deviceData.credentials, { username: "", password: "", desc: "" }]})}>
-                                            <Plus className="w-3 h-3 mr-1" /> Add Credential
-                                        </Button>
-                                    </div>
-                                    {deviceData.credentials.map((cred, idx) => (
-                                        <div key={idx} className="flex gap-2 items-start relative pb-2 group">
-                                            <div className="flex-1 space-y-2">
-                                                 <Input placeholder="Username" required disabled={!!cred.id}
-                                                    className="border-zinc-800 bg-zinc-950 disabled:opacity-50"
-                                                    value={cred.username} onChange={e => {
-                                                        const newCreds = [...deviceData.credentials]; newCreds[idx].username = e.target.value; setDeviceData({...deviceData, credentials: newCreds});
-                                                    }} />
-                                                  <Input placeholder="Label / Description" 
-                                                    className="border-zinc-800 bg-zinc-950 text-xs text-zinc-400"
-                                                    value={cred.desc} onChange={e => {
-                                                        const newCreds = [...deviceData.credentials]; newCreds[idx].desc = e.target.value; setDeviceData({...deviceData, credentials: newCreds});
-                                                    }} />
-                                            </div>
-                                            <div className="flex-1 space-y-2 mt-0">
-                                                 {cred.id ? (
-                                                     <div className="h-10 flex items-center px-3 border border-zinc-800 bg-zinc-950/50 rounded-md text-zinc-500 text-sm italic shadow-inner">Password Saved Safely</div>
-                                                 ) : (
-                                                    <Input type="password" placeholder="••••••••" required
-                                                        className="border-zinc-800 bg-zinc-950"
-                                                        value={cred.password || ""} onChange={e => {
-                                                            const newCreds = [...deviceData.credentials]; newCreds[idx].password = e.target.value; setDeviceData({...deviceData, credentials: newCreds});
-                                                        }} />
-                                                 )}
-                                            </div>
-                                            <Button type="button" variant="ghost" className="h-10 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
-                                                const newCreds = [...deviceData.credentials];
-                                                if (newCreds[idx].id) setRemovedCredentialIds([...removedCredentialIds, newCreds[idx].id!]);
-                                                newCreds.splice(idx, 1);
-                                                setDeviceData({...deviceData, credentials: newCreds});
-                                            }}>Remove</Button>
-                                        </div>
-                                    ))}
-                                    {deviceData.credentials.length === 0 && <div className="text-xs text-zinc-500 text-center py-2 italic flex justify-center items-center gap-1.5"><Shield className="w-3 h-3"/> No credentials stored.</div>}
                                 </div>
 
                                 <DialogFooter className="-mx-4 -mb-4 mt-4 flex flex-col items-center gap-2 rounded-b-xl border-t border-zinc-800 bg-muted/50 p-4 sm:flex-row sm:justify-between">
@@ -477,13 +388,18 @@ function InventoryContent() {
                                 </TableRow>
                             ) : filteredDevices.map((device) => (
                                 <TableRow key={device.id} className="border-zinc-800 hover:bg-zinc-800/40 transition-colors group">
-                                    <TableCell className="font-medium text-zinc-200 px-4 py-3 align-top">
-                                        <div className="flex flex-col gap-1 cursor-pointer w-fit" onClick={() => handleOpenDialog(device)}>
-                                            <div className="flex items-center gap-2 group-hover:text-emerald-400 transition-colors">
-                                                <Server className="h-4 w-4 text-emerald-500/70" />
-                                                <span className="underline decoration-transparent underline-offset-4 group-hover:decoration-emerald-500/50 transition-all">{device.name}</span>
-                                            </div>
-                                            <span className="text-[10px] text-zinc-500 ml-6 uppercase font-semibold tracking-wider bg-zinc-800 w-fit px-1.5 py-0.5 rounded-sm">{device.location.name}</span>
+                                    <TableCell className="font-medium text-zinc-200 px-4 py-3 align-top min-w-[200px]">
+                                        <div className="flex items-center gap-3">
+                                            <Link href={`/dashboard/inventory/${device.id}`} className="flex flex-col gap-1 cursor-pointer w-fit group">
+                                                <div className="flex items-center gap-2 group-hover:text-emerald-400 transition-colors">
+                                                    <Server className="h-4 w-4 text-emerald-500/70" />
+                                                    <span className="underline decoration-transparent underline-offset-4 group-hover:decoration-emerald-500/50 transition-all font-semibold">{device.name}</span>
+                                                </div>
+                                                <span className="text-[10px] text-zinc-500 ml-6 uppercase font-semibold tracking-wider bg-zinc-800 w-fit px-1.5 py-0.5 rounded-sm">{device.location.name}</span>
+                                            </Link>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-zinc-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenDialog(device)}>
+                                                <Pencil className="w-3.5 h-3.5" />
+                                            </Button>
                                         </div>
                                     </TableCell>
                                     <TableCell className="align-top py-4">
@@ -504,7 +420,12 @@ function InventoryContent() {
                                     <TableCell className="font-mono text-zinc-300 align-top py-4">
                                         <div className="flex flex-wrap gap-1.5">
                                             {device.ipAddresses.length > 0 
-                                                ? device.ipAddresses.map(ip => <Badge key={ip.ip_address} variant="secondary" className="bg-zinc-800/80 text-emerald-400 border border-emerald-900/30 font-semibold tracking-tight">{ip.ip_address}</Badge>)
+                                                ? device.ipAddresses.map((ip: any) => (
+                                                    <Badge key={ip.ip_address} variant="secondary" className="bg-zinc-800/80 text-emerald-400 border border-emerald-900/30 font-semibold tracking-tight flex items-center gap-1.5 pr-2">
+                                                        {ip.ip_address}
+                                                        {getStatusDot(ip.status, ip.is_pingable)}
+                                                    </Badge>
+                                                ))
                                                 : <span className="text-zinc-600 text-xs font-sans italic pt-1">No IPs assigned</span>
                                             }
                                         </div>
@@ -524,55 +445,11 @@ function InventoryContent() {
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-right align-top py-3 px-4">
-                                        {device.credentials.length > 0 ? (
-                                            <Dialog>
-                                                <DialogTrigger render={<Button variant="ghost" size="sm" className="text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" onClick={() => handleRevealPasswords(device.id)} />}>
-                                                        <Shield className="h-4 w-4 mr-2" />
-                                                        {device.credentials.length} Vaulted
-                                                </DialogTrigger>
-                                                <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 sm:max-w-xl">
-                                                    <DialogHeader>
-                                                        <DialogTitle className="flex items-center gap-2">
-                                                            <Key className="h-5 w-5 text-emerald-500" />
-                                                            Decrypted Credentials
-                                                        </DialogTitle>
-                                                        <DialogDescription className="text-zinc-400">
-                                                            For device: <strong className="text-zinc-200">{device.name}</strong>
-                                                        </DialogDescription>
-                                                    </DialogHeader>
-
-                                                    <div className="flex flex-col gap-4 p-4 bg-zinc-900/50 rounded-lg border border-zinc-800 mt-2 min-h-[100px] shadow-inner max-h-[50vh] overflow-y-auto">
-                                                        {revealingId === device.id ? (
-                                                            <div className="flex flex-col items-center justify-center gap-3 text-emerald-500 py-8">
-                                                                <Loader2 className="h-6 w-6 animate-spin" />
-                                                                <span className="text-sm font-medium animate-pulse">Decrypting locally...</span>
-                                                            </div>
-                                                        ) : Object.keys(decryptedPasswords).length > 0 ? (
-                                                            device.credentials.map((cred) => (
-                                                              <div key={cred.id} className="flex flex-col gap-2 p-3 border border-zinc-800/80 bg-zinc-950/50 rounded-md">
-                                                                  <div className="flex justify-between items-center w-full">
-                                                                      <span className="text-xs text-zinc-400 font-medium">{cred.desc || "Credential"}</span>
-                                                                      <span className="text-xs font-mono text-zinc-500">{cred.username}</span>
-                                                                  </div>
-                                                                  <div className="w-full">
-                                                                      <code className="block bg-zinc-950 px-4 py-2.5 rounded-md text-base font-mono text-emerald-400 border border-emerald-900/50 w-full tracking-wider select-all">
-                                                                          {decryptedPasswords[cred.id] || "Error: Decryption Failed"}
-                                                                      </code>
-                                                                  </div>
-                                                              </div>
-                                                            ))
-                                                        ) : null}
-                                                    </div>
-
-                                                    <div className="mt-4 text-xs text-zinc-500 text-center flex items-center justify-center gap-1.5 bg-yellow-500/10 text-yellow-500/90 border border-yellow-500/20 py-2.5 rounded-md font-medium">
-                                                        <Shield className="h-3.5 w-3.5" />
-                                                        Decrypted securely in your browser using AES-GCM
-                                                    </div>
-                                                </DialogContent>
-                                            </Dialog>
-                                        ) : (
-                                            <span className="text-zinc-600 text-sm italic mr-4">None</span>
-                                        )}
+                                        <Link href={`/dashboard/inventory/${device.id}`}>
+                                            <Button variant="ghost" size="sm" className="text-emerald-500/80 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors">
+                                                Dashboard <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                                            </Button>
+                                        </Link>
                                     </TableCell>
                                 </TableRow>
                             ))}
