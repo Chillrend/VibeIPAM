@@ -39,6 +39,7 @@ RUN apk add --no-cache openssl iputils
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
 COPY --from=builder /app/package.json ./package.json
 
 # Automatically leverage output traces to reduce image size
