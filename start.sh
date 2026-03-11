@@ -1,5 +1,5 @@
 #!/bin/sh
-echo "Running Prisma migrations..."
+echo "Running database migrations..."
 npx --yes prisma migrate deploy
 
 echo "Starting Next.js server..."
